@@ -13,6 +13,7 @@ import {
   isSupabaseConfigured,
   saveSupabaseRuntimeConfig,
   testSupabaseConnection,
+  WRITABLE_UPLOADS_DIR,
 } from '../config/env.ts';
 import { db, uid } from '../db/sqlite.ts';
 import { requireAuth, requireRole } from '../middleware/auth.ts';
@@ -24,7 +25,7 @@ const router = Router();
 router.use(requireAuth, requireRole('ADMIN'));
 
 // Konfigurasi unggah gambar (JPG, JPEG, PNG, WebP maks 5MB)
-const uploadDir = path.resolve(process.cwd(), 'uploads/questions');
+const uploadDir = path.join(WRITABLE_UPLOADS_DIR, 'questions');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({

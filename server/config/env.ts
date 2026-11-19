@@ -1,11 +1,20 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 dotenv.config();
 
-const configDir = path.resolve(process.cwd(), 'data');
+export const IS_VERCEL = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+export const WRITABLE_DATA_DIR = IS_VERCEL
+  ? path.join(os.tmpdir(), 'cbt-data')
+  : path.resolve(process.cwd(), 'data');
+export const WRITABLE_UPLOADS_DIR = IS_VERCEL
+  ? path.join(os.tmpdir(), 'cbt-uploads')
+  : path.resolve(process.cwd(), 'uploads');
+
+const configDir = WRITABLE_DATA_DIR;
 const runtimeConfigPath = path.join(configDir, 'supabase-config.json');
 
 interface RuntimeSupabaseConfig {

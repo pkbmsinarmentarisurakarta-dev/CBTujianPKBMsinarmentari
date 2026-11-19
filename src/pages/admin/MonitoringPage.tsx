@@ -22,6 +22,7 @@ export function MonitoringPage() {
     queryKey: ['admin-monitoring', selectedExamId],
     queryFn: () =>
       apiFetch<any>(`/api/admin/monitoring${selectedExamId ? `?examId=${encodeURIComponent(selectedExamId)}` : ''}`),
+    refetchInterval: wsConnected ? false : 5000,
   });
 
   const activeExamId = selectedExamId || data?.selectedExamId || '';
@@ -39,6 +40,10 @@ export function MonitoringPage() {
 
     ws.onopen = () => setWsConnected(true);
     ws.onclose = () => setWsConnected(false);
+    ws.onerror = () => {
+      setWsConnected(false);
+      ws.close();
+    };
     ws.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data);
@@ -97,7 +102,7 @@ export function MonitoringPage() {
             ) : (
               <>
                 <WifiOff className="h-3.5 w-3.5 text-amber-600" />
-                <span>Sinkronisasi Manual</span>
+                <span>Polling Otomatis (5 dtk)</span>
               </>
             )}
           </div>

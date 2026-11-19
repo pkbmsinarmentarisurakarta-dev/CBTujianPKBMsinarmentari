@@ -3,8 +3,9 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { WRITABLE_DATA_DIR } from '../config/env.ts';
 
-const dataDir = path.resolve(process.cwd(), 'data');
+const dataDir = WRITABLE_DATA_DIR;
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
@@ -23,7 +24,10 @@ export function uid(): string {
   return crypto.randomUUID();
 }
 
+let dbInitialized = false;
+
 export function initDatabase() {
+  if (dbInitialized) return;
   db.exec(`
     CREATE TABLE IF NOT EXISTS schools (
       id TEXT PRIMARY KEY,
@@ -299,6 +303,7 @@ export function initDatabase() {
   if (schoolCount.c === 0) {
     seedInitialData();
   }
+  dbInitialized = true;
 }
 
 function seedInitialData() {

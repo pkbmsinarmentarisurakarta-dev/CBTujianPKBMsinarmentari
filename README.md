@@ -56,3 +56,27 @@ Aplikasi Computer Based Test (CBT) online berbasis web untuk sekolah, madrasah, 
 ### Alur Pengujian Beban (100 & 200 Pengguna Virtual)
 1. Masuk sebagai **Admin** -> buka menu **Pengaturan**.
 2. Gunakan panel **Uji Beban Konkurensi** (`Uji 100 VU` atau `Uji 200 VU`) atau jalankan skrip `npx tsx scripts/load-test.ts` untuk memverifikasi latensi P95 dan memastikan 0 jawaban hilang.
+
+## Deploy ke Vercel (`vercel.app`)
+
+Proyek ini sudah dilengkapi berkas konfigurasi `vercel.json`, `.vercelignore`, dan serverless entry point `api/index.ts`.
+
+### 1. Environment Variables di Vercel
+Pada **Vercel Dashboard → Project Settings → Environment Variables**, tambahkan variabel berikut:
+- `JWT_SECRET` — String acak minimal 32 karakter (wajib untuk produksi).
+- `APP_URL` — URL deployment Vercel Anda (mis. `https://cbt-sekolah.vercel.app`).
+- `SUPABASE_URL` & `VITE_SUPABASE_URL` — Project URL Supabase Anda.
+- `VITE_SUPABASE_ANON_KEY` — Public Anon Key Supabase.
+- `SUPABASE_SERVICE_ROLE_KEY` — Service Role Key Supabase (khusus server).
+
+### 2. Pengaturan Build di Vercel
+Vercel otomatis membaca `vercel.json`:
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Install Command**: `npm install`
+
+### 3. Catatan Serverless Vercel
+- Routing SPA React (`/masuk-siswa`, `/admin/*`, `/student`, `/exam/*`) dan API (`/api/*`) sudah diatur melalui `rewrites` di `vercel.json`.
+- Pada mode Vercel Serverless, WebSocket persisten tidak tersedia sehingga halaman **Monitoring Ujian** otomatis beralih ke mode **Polling Otomatis (5 detik)**.
+- Sistem penyimpanan file lokal di Vercel bersifat sementara (`/tmp`), sehingga untuk produksi persisten jangka panjang disarankan menghubungkan **Supabase Storage (`cbt-media`)** dan database eksternal.
+
