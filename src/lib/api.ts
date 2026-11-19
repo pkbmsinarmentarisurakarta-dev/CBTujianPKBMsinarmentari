@@ -30,9 +30,22 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {})
     credentials: 'include',
   });
 
-  const data = await res.json().catch(() => ({}));
+  const rawText = await res.text().catch(() => '');
+  let data: any = {};
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = {};
+    }
+  }
+
   if (!res.ok) {
-    const err = new Error(data.error || `Permintaan gagal (${res.status})`) as Error & { status?: number };
+    const fallbackMsg =
+      res.status === 404
+        ? `Endpoint server tidak ditemukan (404). Pastikan fungsi API backend (/api/handler) ikut ter-deploy.`
+        : `Permintaan gagal (${res.status})`;
+    const err = new Error(data.error || fallbackMsg) as Error & { status?: number };
     err.status = res.status;
     throw err;
   }

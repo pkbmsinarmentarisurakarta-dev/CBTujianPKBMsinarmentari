@@ -67,6 +67,13 @@ export function createApp() {
   app.use('/api/admin', apiRateLimiter(400, 60_000), adminRoutes);
   app.use('/api/student', apiRateLimiter(600, 60_000), studentRoutes);
 
+  // JSON 404 untuk rute /api yang tidak cocok
+  app.use('/api', (req: Request, res: Response) => {
+    return res.status(404).json({
+      error: `Endpoint API tidak ditemukan (${req.method} ${req.originalUrl || req.url}).`,
+    });
+  });
+
   // Centralized API error handler
   app.use('/api', (err: any, _req: Request, res: Response, _next: NextFunction) => {
     console.error('[API Error]', err);
