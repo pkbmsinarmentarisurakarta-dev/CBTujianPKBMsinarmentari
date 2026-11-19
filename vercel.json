@@ -4,10 +4,21 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/*.js": {
+    "api/cbt.js": {
       "maxDuration": 30,
       "memory": 1024,
-      "includeFiles": "node_modules/better-sqlite3/**"
+      "includeFiles": [
+        "server/_vercel-bundle.mjs",
+        "node_modules/better-sqlite3/**"
+      ]
+    },
+    "api/index.js": {
+      "maxDuration": 30,
+      "memory": 1024,
+      "includeFiles": [
+        "server/_vercel-bundle.mjs",
+        "node_modules/better-sqlite3/**"
+      ]
     }
   },
   "headers": [
@@ -24,27 +35,27 @@
   "rewrites": [
     {
       "source": "/api/auth/(.*)",
-      "destination": "/api/cbt?__vercel_path=auth/$1"
+      "destination": "/api/cbt.js?__vercel_path=auth/$1"
     },
     {
       "source": "/api/admin/(.*)",
-      "destination": "/api/cbt?__vercel_path=admin/$1"
+      "destination": "/api/cbt.js?__vercel_path=admin/$1"
     },
     {
       "source": "/api/student/(.*)",
-      "destination": "/api/cbt?__vercel_path=student/$1"
+      "destination": "/api/cbt.js?__vercel_path=student/$1"
     },
     {
       "source": "/api/public/(.*)",
-      "destination": "/api/cbt?__vercel_path=public/$1"
+      "destination": "/api/cbt.js?__vercel_path=public/$1"
     },
     {
       "source": "/api/health",
-      "destination": "/api/cbt?__vercel_path=health"
+      "destination": "/api/cbt.js?__vercel_path=health"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/api/cbt?__vercel_path=uploads/$1"
+      "destination": "/api/cbt.js?__vercel_path=uploads/$1"
     },
     {
       "source": "/((?!api/|uploads/).*)",
