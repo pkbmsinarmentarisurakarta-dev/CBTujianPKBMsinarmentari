@@ -24,15 +24,15 @@
   ],
   "rewrites": [
     {
-      "source": "/api/((?!handler$).*)",
-      "destination": "/api/handler?__vercel_path=$1"
+      "source": "/api/:path*",
+      "destination": "/api/handler?__vercel_path=:path*"
     },
     {
-      "source": "/uploads/(.*)",
-      "destination": "/api/handler?__vercel_path=uploads/$1"
+      "source": "/uploads/:path*",
+      "destination": "/api/handler?__vercel_path=uploads/:path*"
     },
     {
-      "source": "/((?!api/|uploads/|assets/|images/).*)",
+      "source": "/((?!api/|uploads/).*)",
       "destination": "/index.html"
     }
   ]
