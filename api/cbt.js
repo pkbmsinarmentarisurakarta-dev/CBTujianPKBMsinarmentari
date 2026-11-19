@@ -2,7 +2,7 @@ let cachedApp = null;
 
 async function getApp() {
   if (!cachedApp) {
-    const mod = await import('./_server.mjs');
+    const mod = await import('../server/_vercel-bundle.mjs');
     cachedApp = mod.default;
   }
   return cachedApp;
@@ -10,7 +10,7 @@ async function getApp() {
 
 export default async function handler(req, res) {
   try {
-    // Pulihkan path API asli saat diteruskan melalui Vercel rewrite (?__vercel_path=...)
+    // Pulihkan path API asli saat diteruskan lewat ?__vercel_path=... (dari rewrite vercel.json atau fallback klien)
     if (req.url) {
       const parsedUrl = new URL(req.url, 'http://localhost');
       const vercelPath = parsedUrl.searchParams.get('__vercel_path');

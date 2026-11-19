@@ -1,11 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/*.mjs": {
+    "api/*.js": {
       "maxDuration": 30,
       "memory": 1024,
       "includeFiles": "node_modules/better-sqlite3/**"
@@ -24,12 +23,28 @@
   ],
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/handler?__vercel_path=:path*"
+      "source": "/api/auth/(.*)",
+      "destination": "/api/cbt?__vercel_path=auth/$1"
     },
     {
-      "source": "/uploads/:path*",
-      "destination": "/api/handler?__vercel_path=uploads/:path*"
+      "source": "/api/admin/(.*)",
+      "destination": "/api/cbt?__vercel_path=admin/$1"
+    },
+    {
+      "source": "/api/student/(.*)",
+      "destination": "/api/cbt?__vercel_path=student/$1"
+    },
+    {
+      "source": "/api/public/(.*)",
+      "destination": "/api/cbt?__vercel_path=public/$1"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/cbt?__vercel_path=health"
+    },
+    {
+      "source": "/uploads/(.*)",
+      "destination": "/api/cbt?__vercel_path=uploads/$1"
     },
     {
       "source": "/((?!api/|uploads/).*)",

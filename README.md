@@ -59,7 +59,7 @@ Aplikasi Computer Based Test (CBT) online berbasis web untuk sekolah, madrasah, 
 
 ## Deploy ke Vercel (`vercel.app`)
 
-Proyek ini sudah dilengkapi berkas konfigurasi `vercel.json`, `.vercelignore`, dan serverless entry point `api/index.mjs` (Node.js 22.x).
+Proyek ini sudah dilengkapi berkas konfigurasi `vercel.json`, `.vercelignore`, dan serverless entry point `api/cbt.js` + `api/index.js` (Node.js 22.x).
 
 ### 1. Environment Variables di Vercel
 Pada **Vercel Dashboard → Project Settings → Environment Variables**, tambahkan variabel berikut:
