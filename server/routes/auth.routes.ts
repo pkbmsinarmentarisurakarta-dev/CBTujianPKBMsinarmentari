@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { Request, Response, Router } from 'express';
 import { z } from 'zod';
+import { getSupabaseAdmin, isSupabaseConfigured } from '../config/env.ts';
 import { db } from '../db/sqlite.ts';
 import { requireAuth, signAuthToken } from '../middleware/auth.ts';
 import { writeAuditLog } from '../utils/audit.ts';
@@ -16,7 +17,7 @@ const loginSchema = z.object({
 
 const forgotTokens = new Map<string, { profileId: string; expiresAt: number }>();
 
-router.post('/login', (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Input tidak valid' });
@@ -26,7 +27,7 @@ router.post('/login', (req: Request, res: Response) => {
   const trimmed = identifier.trim();
 
   // Cari berdasarkan username, email (admin), atau NIS (siswa)
-  const user = db.prepare(`
+  let user = db.prepare(`
     SELECT p.*, s.id AS student_id, s.nis, s.status AS student_status, s.class_id, c.name AS class_name,
            sc.name AS school_name, sc.logo_url AS school_logo, sc.active_academic_year, sc.active_semester
     FROM profiles p
@@ -36,6 +37,74 @@ router.post('/login', (req: Request, res: Response) => {
     WHERE p.role = ? AND (LOWER(p.username) = LOWER(?) OR LOWER(COALESCE(p.email, '')) = LOWER(?) OR LOWER(COALESCE(s.nis, '')) = LOWER(?))
     LIMIT 1
   `).get(portal, trimmed, trimmed, trimmed) as any;
+
+  // Fallback ke Supabase bila user belum ada di SQLite lokal (mis. instance serverless baru)
+  if (!user && isSupabaseConfigured()) {
+    try {
+      const sb = getSupabaseAdmin();
+      if (sb) {
+        const lower = trimmed.toLowerCase();
+        const { data: sbProfs } = await sb
+          .from('profiles')
+          .select('*')
+          .eq('role', portal)
+          .or(`username.ilike.${lower},email.ilike.${lower}`)
+          .limit(1);
+
+        let sbProf = sbProfs?.[0];
+        let sbStudent: any = null;
+
+        if (!sbProf && portal === 'SISWA') {
+          const { data: stuMatch } = await sb
+            .from('students')
+            .select('*')
+            .ilike('nis', lower)
+            .limit(1);
+          if (stuMatch?.[0]) {
+            sbStudent = stuMatch[0];
+            const { data: pByStu } = await sb
+              .from('profiles')
+              .select('*')
+              .eq('id', sbStudent.profile_id)
+              .eq('role', 'SISWA')
+              .limit(1);
+            sbProf = pByStu?.[0];
+          }
+        }
+
+        if (sbProf) {
+          if (!sbStudent && portal === 'SISWA') {
+            const { data: stuData } = await sb.from('students').select('*').eq('profile_id', sbProf.id).limit(1);
+            sbStudent = stuData?.[0] || null;
+          }
+          const { data: sbSchool } = await sb.from('schools').select('*').eq('id', sbProf.school_id).limit(1);
+          const schoolRow = sbSchool?.[0];
+          let className: string | null = null;
+          if (sbStudent?.class_id) {
+            const { data: clsRow } = await sb.from('classes').select('name').eq('id', sbStudent.class_id).limit(1);
+            className = clsRow?.[0]?.name || null;
+          }
+
+          user = {
+            ...sbProf,
+            is_active: sbProf.is_active ? 1 : 0,
+            student_id: sbStudent?.id || null,
+            nis: sbStudent?.nis || null,
+            student_status: sbStudent?.status || null,
+            class_id: sbStudent?.class_id || null,
+            class_name: className,
+            school_name: schoolRow?.name || 'Sekolah / Madrasah',
+            school_logo: schoolRow?.logo_url || '/images/school-logo.jpg',
+            active_academic_year: schoolRow?.active_academic_year || '2026/2027',
+            active_semester: schoolRow?.active_semester || 'Ganjil',
+            _fromSupabase: true,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[Auth Supabase Fallback]', e);
+    }
+  }
 
   if (!user) {
     return res.status(401).json({ error: 'Kredensial tidak ditemukan atau tidak sesuai dengan peran login.' });
@@ -57,9 +126,11 @@ router.post('/login', (req: Request, res: Response) => {
   if (!validPassword) {
     const nextAttempts = (user.failed_login_attempts || 0) + 1;
     const lockedUntil = nextAttempts >= 5 ? new Date(Date.now() + 5 * 60_000).toISOString() : null;
-    db.prepare(`
-      UPDATE profiles SET failed_login_attempts = ?, locked_until = ? WHERE id = ?
-    `).run(nextAttempts >= 5 ? 0 : nextAttempts, lockedUntil, user.id);
+    if (!user._fromSupabase) {
+      db.prepare(`
+        UPDATE profiles SET failed_login_attempts = ?, locked_until = ? WHERE id = ?
+      `).run(nextAttempts >= 5 ? 0 : nextAttempts, lockedUntil, user.id);
+    }
 
     writeAuditLog({
       schoolId: user.school_id,
@@ -79,9 +150,11 @@ router.post('/login', (req: Request, res: Response) => {
   }
 
   // Reset counter percobaan & catat login terakhir
-  db.prepare(`
-    UPDATE profiles SET failed_login_attempts = 0, locked_until = NULL, last_login_at = datetime('now') WHERE id = ?
-  `).run(user.id);
+  if (!user._fromSupabase) {
+    db.prepare(`
+      UPDATE profiles SET failed_login_attempts = 0, locked_until = NULL, last_login_at = datetime('now') WHERE id = ?
+    `).run(user.id);
+  }
 
   const token = signAuthToken({
     profileId: user.id,
@@ -89,10 +162,11 @@ router.post('/login', (req: Request, res: Response) => {
     role: user.role,
   });
 
+  const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
   res.cookie('cbt_token', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttps,
     maxAge: 12 * 60 * 60 * 1000,
   });
 
@@ -141,8 +215,8 @@ router.post('/logout', requireAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, message: 'Berhasil keluar dari sistem.' });
 });
 
-router.get('/me', requireAuth, (req: Request, res: Response) => {
-  const u = db.prepare(`
+router.get('/me', requireAuth, async (req: Request, res: Response) => {
+  let u = db.prepare(`
     SELECT p.id AS profileId, p.school_id AS schoolId, p.role, p.username, p.email, p.full_name AS fullName,
            s.id AS studentId, s.nis, s.nisn, s.class_id AS classId, c.name AS className,
            sc.name AS schoolName, sc.logo_url AS schoolLogo, sc.active_academic_year AS activeAcademicYear,
@@ -152,7 +226,42 @@ router.get('/me', requireAuth, (req: Request, res: Response) => {
     LEFT JOIN students s ON s.profile_id = p.id
     LEFT JOIN classes c ON c.id = s.class_id
     WHERE p.id = ?
-  `).get(req.authUser!.profileId);
+  `).get(req.authUser!.profileId) as any;
+
+  if (!u && isSupabaseConfigured()) {
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      const { data: p } = await sb.from('profiles').select('*').eq('id', req.authUser!.profileId).maybeSingle();
+      if (p) {
+        const { data: sc } = await sb.from('schools').select('*').eq('id', p.school_id).maybeSingle();
+        const { data: s } = await sb.from('students').select('*').eq('profile_id', p.id).maybeSingle();
+        let className: string | null = null;
+        if (s?.class_id) {
+          const { data: c } = await sb.from('classes').select('name').eq('id', s.class_id).maybeSingle();
+          className = c?.name || null;
+        }
+        u = {
+          profileId: p.id,
+          schoolId: p.school_id,
+          role: p.role,
+          username: p.username,
+          email: p.email,
+          fullName: p.full_name,
+          studentId: s?.id || null,
+          nis: s?.nis || null,
+          nisn: s?.nisn || null,
+          classId: s?.class_id || null,
+          className,
+          schoolName: sc?.name || 'Sekolah / Madrasah',
+          schoolLogo: sc?.logo_url || '/images/school-logo.jpg',
+          activeAcademicYear: sc?.active_academic_year || '2026/2027',
+          activeSemester: sc?.active_semester || 'Ganjil',
+          appTitle: sc?.app_title || 'CBT Online Sekolah/Madrasah',
+        };
+      }
+    }
+  }
+
   return res.json({ user: u });
 });
 

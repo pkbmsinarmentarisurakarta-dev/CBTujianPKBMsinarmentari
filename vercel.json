@@ -5,9 +5,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.ts": {
+    "api/**/*.mjs": {
       "maxDuration": 30,
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "node_modules/better-sqlite3/**"
     }
   },
   "headers": [
@@ -23,12 +24,8 @@
   ],
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
-    },
-    {
       "source": "/uploads/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/uploads/$1"
     },
     {
       "source": "/((?!api/|uploads/|assets/|images/).*)",

@@ -25,6 +25,13 @@ export function createApp() {
     })
   );
   app.use(cookieParser());
+  // Guard bila runtime serverless (mis. Vercel) sudah mem-parsing req.body sebelum Express
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    if (req.body !== undefined && typeof req.body === 'object' && !(req as any)._body) {
+      (req as any)._body = true;
+    }
+    next();
+  });
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
@@ -32,6 +39,7 @@ export function createApp() {
   const uploadsPath = WRITABLE_UPLOADS_DIR;
   if (!fs.existsSync(uploadsPath)) fs.mkdirSync(uploadsPath, { recursive: true });
   app.use('/uploads', express.static(uploadsPath));
+  app.use('/api/uploads', express.static(uploadsPath));
 
   // Public school info untuk halaman login (tanpa data sensitif)
   app.get('/api/public/school-info', (_req: Request, res: Response) => {
